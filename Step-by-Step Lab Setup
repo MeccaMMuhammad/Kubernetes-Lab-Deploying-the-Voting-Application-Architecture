@@ -1,0 +1,256 @@
+Step-by-Step Lab Setup
+1. Setup Kubernetes Cluster
+Ensure you have a Kubernetes cluster running. You can use any of the following:
+
+Minikube
+
+Kubeadm (on a cloud or on-prem)
+
+Kubernetes on Docker Desktop
+
+2. Create the vote Namespace
+To ensure proper scoping of resources, first create the vote namespace where all services and deployments will reside:
+
+kubectl create namespace vote
+
+3. Create Config Files for Each Component
+For each deployment and service, below are the YAML configurations used for creating deployments and services for Redis, Vote, Worker, DB, and Result.
+
+Redis Deployment & Service (redis-deployment.yaml & redis-service.yaml)
+
+redis-deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-deployment
+  namespace: vote
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:alpine
+        ports:
+        - containerPort: 6379
+        volumeMounts:
+        - mountPath: /data
+          name: redis-data
+      volumes:
+      - name: redis-data
+        emptyDir: {}
+
+redis-service.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: vote
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+
+Vote Deployment & Service (vote-deployment.yaml & vote-service.yaml)
+
+vote-deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vote-deployment
+  namespace: vote
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vote
+  template:
+    metadata:
+      labels:
+        app: vote
+    spec:
+      containers:
+      - name: vote
+        image: kodekloud/examplevotingapp_vote:before
+        ports:
+        - containerPort: 80
+
+vote-service.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: vote-service
+  namespace: vote
+spec:
+  type: NodePort
+  selector:
+    app: vote
+  ports:
+    - port: 5000
+      targetPort: 80
+      nodePort: 31000
+
+Worker Deployment (worker-deployment.yaml)
+worker-deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: vote
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+      - name: worker
+        image: kodekloud/examplevotingapp_worker
+        env:
+        - name: POSTGRES_HOST
+          value: db
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          value: votingapp
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          value: password
+
+DB Deployment & Service (db-deployment.yaml & db-service.yaml)
+db-deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-deployment
+  namespace: vote
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+      - name: db
+        image: postgres:9.4
+        env:
+        - name: POSTGRES_HOST_AUTH_METHOD
+          value: trust
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: db-data
+      volumes:
+      - name: db-data
+        emptyDir: {}
+
+db-service.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: vote
+spec:
+  type: ClusterIP
+  selector:
+    app: db
+  ports:
+    - port: 5432
+      targetPort: 5432
+
+Result Deployment & Service (result-deployment.yaml & result-service.yaml)
+result-deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: result-deployment
+  namespace: vote
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: result
+  template:
+    metadata:
+      labels:
+        app: result
+    spec:
+      containers:
+      - name: result
+        image: kodekloud/examplevotingapp_result:before
+        ports:
+        - containerPort: 80
+
+result-service.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: result-service
+  namespace: vote
+spec:
+  selector:
+    app: result
+  ports:
+    - port: 5001
+      targetPort: 80
+      nodePort: 31001
+  type: NodePort
+
+
+4. Apply the Configurations
+Once the YAML files are ready, apply them to your cluster:
+
+kubectl apply -f redis-deployment.yaml
+kubectl apply -f redis-service.yaml
+kubectl apply -f vote-deployment.yaml
+kubectl apply -f vote-service.yaml
+kubectl apply -f worker-deployment.yaml
+kubectl apply -f db-deployment.yaml
+kubectl apply -f db-service.yaml
+kubectl apply -f result-deployment.yaml
+kubectl apply -f result-service.yaml
+
+5. Verify Deployment and Services
+You can verify the services and deployments by checking their status:
+
+kubectl get pods -n vote
+kubectl get svc -n vote
+kubectl get deployments -n vote
+
+6. Troubleshooting
+Port Allocation: If a nodePort is already taken, you can modify the port numbers in the YAML files.
+
+CrashLoopBackOff: If the worker deployment fails, check environment variables and ensure the PostgreSQL DB is accessible using the correct DNS name (e.g., db).
+
+Conclusion
+This lab has been a crucial part of my Linux Systems Admin journey, helping me understand how to manage Kubernetes clusters, troubleshoot deployment issues, and work with services and networking in a containerized environment. The hands-on experience with the architecture and troubleshooting will help in managing production-grade Kubernetes clusters and applications.
+
+Feel free to fork this repository and adapt it for your own needs!
